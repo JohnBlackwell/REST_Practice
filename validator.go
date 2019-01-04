@@ -26,8 +26,6 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 		log.Fatal(err)
 		return http.StatusInternalServerError
 	}
-	fmt.Println("successfully connected to db")
-
 	r.ParseMultipartForm(32 << 20)
 	mp := r.MultipartForm
 	for _, file_headers := range mp.File {
@@ -39,8 +37,6 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 			}
 			defer file.Close()
 			scanner := bufio.NewScanner(file)
-			//this code works great. need to figure out how to account for duplicates bc
-			//table will get ridiculously big if I don't
 
 			txn, err := db.Begin()
 			if err != nil {
@@ -127,7 +123,7 @@ func CheckPassword(rw http.ResponseWriter, r *http.Request) int {
 			return http.StatusInternalServerError
 		}
 		pwdExists = append(pwdExists, ret)
-	}	
+	}
 
 	if err := rows.Err(); err != nil {
 		log.Fatal(err)
