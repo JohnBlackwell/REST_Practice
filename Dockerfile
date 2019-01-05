@@ -4,6 +4,6 @@ RUN go get github.com/lib/pq
 
 COPY . /go/src/github.com/golang/IdeaEvolver
 
-RUN go install /go/src/github.com/golang/IdeaEvolver
-ENTRYPOINT /go/bin/IdeaEvolver
-EXPOSE 8080
+EXPOSE 3000
+WORKDIR /go/src/github.com/golang/IdeaEvolver
+CMD ["go", "run", "server.go", "dbfuncs.go", "validator.go"]

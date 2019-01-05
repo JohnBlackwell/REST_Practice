@@ -6,12 +6,23 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-
 	"github.com/lib/pq"
 )
 
 type message struct {
 	Password string
+}
+
+func ProcessRequest(rw http.ResponseWriter, r *http.Request) int {
+	
+	headerType := r.Header.Get("Content-type")
+	switch headerType {
+	case "application/json":
+		return CheckPassword(rw, r)
+	case "multipart/form-data":
+		return UploadFiles(rw, r)
+	}
+	return http.StatusBadRequest
 }
 
 func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
@@ -86,7 +97,6 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 }
 func CheckPassword(rw http.ResponseWriter, r *http.Request) int {
 	decoder := json.NewDecoder(r.Body)
-
 	var m message
 	err := decoder.Decode(&m)
 
@@ -96,22 +106,22 @@ func CheckPassword(rw http.ResponseWriter, r *http.Request) int {
 	//check length of password to make sure > 8 minimum
 	pwd := m.Password
 	if len(pwd) < 8 {
-		rw.WriteHeader(http.StatusUnauthorized)
-		return http.StatusUnauthorized
+		rw.WriteHeader(http.StatusForbidden)
+		return http.StatusForbidden
 	}
 	//check if password in common_passwords table
 	db, err := ConnectDB()
 	if err != nil {
 		fmt.Println("ERROR with getting DB", err)
-		rw.WriteHeader(http.StatusUnauthorized)
-		return http.StatusUnauthorized
+		rw.WriteHeader(http.StatusForbidden)
+		return http.StatusForbidden
 	}
 
 	rows, err := db.Query("select password from common_passwords where password = $1", pwd)
 	if err != nil {
 		fmt.Println("ERROR querying db", err)
-		rw.WriteHeader(http.StatusUnauthorized)
-		return http.StatusUnauthorized
+		rw.WriteHeader(http.StatusForbidden)
+		return http.StatusForbidden
 	}
 
 	pwdExists := make([]string, 0)
@@ -131,8 +141,8 @@ func CheckPassword(rw http.ResponseWriter, r *http.Request) int {
 	}
 
 	if len(pwdExists) > 0 {
-		rw.WriteHeader(http.StatusUnauthorized)
-		return http.StatusUnauthorized
+		rw.WriteHeader(http.StatusForbidden)
+		return http.StatusForbidden
 	}
 
 	rw.WriteHeader(http.StatusCreated)

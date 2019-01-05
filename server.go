@@ -10,7 +10,6 @@ func main() {
 	m.Get("/", func() string {
 		return "Running on localhost"
 	})
-	m.Post("/passwordFiles", UploadFiles)
-	m.Post("/validate", CheckPassword)
+	m.Post("/process", ProcessRequest)
 	m.Run()
 }
