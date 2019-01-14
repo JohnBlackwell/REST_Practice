@@ -3,9 +3,9 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+
 	"github.com/lib/pq"
 )
 
@@ -14,7 +14,7 @@ type message struct {
 }
 
 func ProcessRequest(rw http.ResponseWriter, r *http.Request) int {
-	
+
 	headerType := r.Header.Get("Content-type")
 	switch headerType {
 	case "application/json":
@@ -29,7 +29,7 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 	//establish db connection
 	db, err := ConnectDB()
 	if err != nil {
-		fmt.Println("ERROR with getting DB", err)
+		log.Printf("Could not connect to db: %v\n", err)
 		return http.StatusInternalServerError
 	}
 	err = db.Ping()
@@ -43,20 +43,23 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 		for _, header := range file_headers {
 			file, err := header.Open()
 			if err != nil {
-				fmt.Println("error open: ", err)
+				log.Fatal(err)
 				return http.StatusInternalServerError
 			}
-			defer file.Close()
-			scanner := bufio.NewScanner(file)
 
+			defer file.Close()
+
+			scanner := bufio.NewScanner(file)
 			txn, err := db.Begin()
 			if err != nil {
 				log.Fatal(err)
 				return http.StatusInternalServerError
 			}
-
 			stmt, err := txn.Prepare(pq.CopyIn("common_passwords", "password"))
 			if err != nil {
+				if rollbackErr := txn.Rollback(); rollbackErr != nil {
+					log.Printf("Could not roll back: %v\n", rollbackErr)
+				}
 				log.Fatal(err)
 				return http.StatusInternalServerError
 			}
@@ -65,6 +68,9 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 				entry := scanner.Text()
 				_, err = stmt.Exec(entry)
 				if err != nil {
+					if rollbackErr := txn.Rollback(); rollbackErr != nil {
+						log.Printf("Could not roll back: %v\n", rollbackErr)
+					}
 					log.Fatal(err)
 					return http.StatusInternalServerError
 				}
@@ -73,19 +79,19 @@ func UploadFiles(rw http.ResponseWriter, r *http.Request) int {
 				log.Fatal(err)
 				return http.StatusInternalServerError
 			}
-
 			_, err = stmt.Exec()
 			if err != nil {
+				if rollbackErr := txn.Rollback(); rollbackErr != nil {
+					log.Printf("Could not roll back: %v\n", rollbackErr)
+				}
 				log.Fatal(err)
 				return http.StatusInternalServerError
 			}
-
 			err = stmt.Close()
 			if err != nil {
 				log.Fatal(err)
 				return http.StatusInternalServerError
 			}
-
 			err = txn.Commit()
 			if err != nil {
 				log.Fatal(err)
@@ -112,14 +118,14 @@ func CheckPassword(rw http.ResponseWriter, r *http.Request) int {
 	//check if password in common_passwords table
 	db, err := ConnectDB()
 	if err != nil {
-		fmt.Println("ERROR with getting DB", err)
+		log.Printf("Could not connect to db: %v\n", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return http.StatusForbidden
 	}
 
 	rows, err := db.Query("select password from common_passwords where password = $1", pwd)
 	if err != nil {
-		fmt.Println("ERROR querying db", err)
+		log.Fatal(err)
 		rw.WriteHeader(http.StatusForbidden)
 		return http.StatusForbidden
 	}
